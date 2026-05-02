@@ -1,0 +1,9 @@
+{
+  "name": "pipeline1",
+  "activities": [
+    {
+      "name": "copy_data",
+      "type": "Copy"
+    }
+  ]
+}

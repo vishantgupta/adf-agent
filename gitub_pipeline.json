@@ -1,0 +1,13 @@
+{
+  "name": "pipeline1",
+  "activities": [
+    {
+      "name": "copy_data",
+      "type": "Copy"
+    },
+    {
+      "name": "validate_data",
+      "type": "Validation"
+    }
+  ]
+}
