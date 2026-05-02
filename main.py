@@ -1,23 +1,110 @@
+import json
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.datafactory import DataFactoryManagementClient
 
-# your details
 subscription_id = "4fc3407d-e164-4150-b5bd-00694b941cb5"
 resource_group = "vishantRG"
 factory_name = "TestAEVishant"
 
-# auth
 credential = DefaultAzureCredential()
-
-# client
 client = DataFactoryManagementClient(credential, subscription_id)
 
-# list pipelines
-pipelines = client.pipelines.list_by_factory(resource_group, factory_name)
+pipeline = client.pipelines.get(
+    resource_group,
+    factory_name,
+    "pl_test_drift"
+)
 
-for p in pipelines:
-    print("Pipeline:", p.name)
+azure_pipeline = pipeline.as_dict()
 
-    # get full pipeline JSON
-    pipeline_detail = client.pipelines.get(resource_group, factory_name, p.name)
-    print(pipeline_detail.as_dict())
+with open("github_pipeline.json") as f:
+    github_pipeline = json.load(f)
+
+azure_names = [a["name"] for a in azure_pipeline.get("activities", [])]
+github_names = [a["name"] for a in github_pipeline.get("activities", [])]
+
+only_in_azure = set(azure_names) - set(github_names)
+only_in_github = set(github_names) - set(azure_names)
+
+print("Azure activities:", azure_names)
+print("GitHub activities:", github_names)
+
+if not only_in_azure and not only_in_github:
+    print("✅ No drift found")
+else:
+    print("❌ Drift found")
+
+    if only_in_azure:
+        print("Only in Azure:", only_in_azure)
+
+    if only_in_github:
+        print("Only in GitHub:", only_in_github)
+
+
+if only_in_azure:
+    print("\n🔧 Suggested fix: Update GitHub to match Azure")
+
+    corrected_pipeline = {
+        "name": azure_pipeline["name"],
+        "activities": azure_pipeline["activities"]
+    }
+
+    with open("generated_pipeline.json", "w") as f:
+        json.dump(corrected_pipeline, f, indent=2)
+
+    print("✅ Generated file: generated_pipeline.json")
+
+
+from openai import OpenAI
+import os
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+if only_in_azure or only_in_github:
+
+    prompt = f"""
+    Azure activities: {azure_names}
+    GitHub activities: {github_names}
+
+    Differences:
+    Only in Azure: {only_in_azure}
+    Only in GitHub: {only_in_github}
+
+    Explain:
+    - what changed
+    - why it might have happened
+    - risks
+    - recommended action
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a senior data engineer analyzing pipeline drift."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    print("\n🤖 AI Analysis:\n")
+    print(response.choices[0].message.content)
+
+
+import subprocess
+
+if only_in_azure:
+    branch_name = "auto-fix-pipeline"
+
+    # create new branch
+    subprocess.run(["git", "checkout", "-b", branch_name])
+
+    # replace github file with generated file
+    subprocess.run(["cp", "generated_pipeline.json", "github_pipeline.json"])
+
+    # commit changes
+    subprocess.run(["git", "add", "."])
+    subprocess.run(["git", "commit", "-m", "Auto fix pipeline drift"])
+
+    # push branch
+    subprocess.run(["git", "push", "-u", "origin", branch_name])
+
+    print(f"🚀 Branch {branch_name} pushed. Create PR on GitHub.")
