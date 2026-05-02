@@ -1,0 +1,9 @@
+{
+  "name": "pl_test_drift",
+  "activities": [
+    {
+      "name": "copy_data",
+      "type": "Copy"
+    }
+  ]
+}
