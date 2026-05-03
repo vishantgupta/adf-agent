@@ -2,11 +2,8 @@
   "name": "pl_test_drift",
   "activities": [
     {
-      "name": "wait_10_seconds",
-      "type": "Wait",
-      "depends_on": [],
-      "user_properties": [],
-      "wait_time_in_seconds": 1
+      "name": "copy_data",
+      "type": "Copy"
     }
   ]
 }
